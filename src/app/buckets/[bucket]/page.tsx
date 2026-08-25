@@ -3,8 +3,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ArrowLeft, Download, FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { ConfirmDialog } from "@/components/apollo/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/apollo/client";
 import { formatBytes } from "@/lib/utils";
 
@@ -28,7 +34,8 @@ export default function BucketPage() {
       failureCount < 6 && /exist|not[\s-]?found/i.test((error as Error).message),
     retryDelay: 1200,
   });
-  const refetchSoon = () => setTimeout(() => qc.invalidateQueries({ queryKey: ["objects", bucket] }), 1500);
+  const refetchSoon = () =>
+    setTimeout(() => qc.invalidateQueries({ queryKey: ["objects", bucket] }), 1500);
 
   const upload = useMutation({
     mutationFn: (file: File) => api.uploadObject(bucket, file.name, file),
@@ -46,21 +53,36 @@ export default function BucketPage() {
     onError: (e: Error) => setError(e.message),
   });
 
+  const syncing = upload.isPending || remove.isPending;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <Link href="/" className="text-xs text-neutral-500 hover:underline">
-            ← buckets
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-1">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-3" /> buckets
           </Link>
-          <h1 className="text-xl font-semibold">{bucket}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="font-mono text-xl font-semibold tracking-tight">{bucket}</h1>
+            {syncing ? (
+              <Badge variant="muted" className="gap-1.5">
+                <Loader2 className="size-3 animate-spin" />
+                syncing…
+              </Badge>
+            ) : null}
+          </div>
         </div>
+
         <div className="flex items-center gap-2">
-          <input
+          <Input
             value={prefix}
             onChange={(e) => setPrefix(e.target.value)}
             placeholder="prefix filter"
-            className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm outline-none focus:border-neutral-500"
+            aria-label="Filter by prefix"
+            className="w-40 font-mono"
           />
           <input
             ref={fileRef}
@@ -71,68 +93,109 @@ export default function BucketPage() {
             }}
             className="hidden"
           />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={upload.isPending}
-            className="rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-900 disabled:opacity-50"
-          >
-            {upload.isPending ? "Uploading…" : "Upload"}
-          </button>
+          <Button onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
+            {upload.isPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Uploading…
+              </>
+            ) : (
+              <>
+                <Upload className="size-4" /> Upload
+              </>
+            )}
+          </Button>
         </div>
-      </div>
+      </header>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-foreground">
+          {error}
+        </p>
+      ) : null}
 
-      <div className="rounded-lg border border-neutral-800">
+      <div className="overflow-hidden rounded-lg border bg-card/60">
         {objects.isLoading ? (
-          <p className="p-4 text-sm text-neutral-500">Loading…</p>
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-5 w-full" />
+            ))}
+          </div>
         ) : objects.isError ? (
-          <p className="p-4 text-sm text-red-400">{(objects.error as Error).message}</p>
+          <div className="space-y-3 p-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Couldn&apos;t load objects: {(objects.error as Error).message}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => objects.refetch()}>
+              Retry
+            </Button>
+          </div>
         ) : !objects.data?.objects.length ? (
-          <p className="p-4 text-sm text-neutral-500">No objects{prefix ? ` under “${prefix}”` : ""}.</p>
+          <div className="flex flex-col items-center gap-2 p-10 text-center">
+            <FileText className="size-8 text-muted-foreground/60" />
+            <p className="text-sm font-medium">
+              No objects{prefix ? ` under “${prefix}”` : ""}
+            </p>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Use <span className="font-medium text-foreground">Upload</span> to add a file — it
+              streams straight to QuObjects.
+            </p>
+          </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-neutral-500">
-              <tr className="border-b border-neutral-800">
-                <th className="px-4 py-2 font-medium">Object</th>
-                <th className="px-4 py-2 font-medium">Size</th>
-                <th className="px-4 py-2 font-medium">Type</th>
-                <th className="px-4 py-2 font-medium">Gen</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-800">
-              {objects.data.objects.map((o) => (
-                <tr key={o.object}>
-                  <td className="px-4 py-2 font-mono text-xs">{o.object}</td>
-                  <td className="px-4 py-2 text-neutral-300">{formatBytes(o.size)}</td>
-                  <td className="px-4 py-2 text-neutral-400">{o.contentType}</td>
-                  <td className="px-4 py-2 text-neutral-400">{o.generation}</td>
-                  <td className="px-4 py-2 text-right">
-                    <a
-                      href={api.objectHref(bucket, o.object)}
-                      className="text-xs text-neutral-400 hover:text-neutral-100"
-                    >
-                      download
-                    </a>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete “${o.object}”?`)) remove.mutate(o.object);
-                      }}
-                      className="ml-3 text-xs text-neutral-500 hover:text-red-400"
-                    >
-                      delete
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted-foreground">
+                <tr className="border-b">
+                  <th className="px-4 py-2.5 font-medium">Object</th>
+                  <th className="px-4 py-2.5 font-medium">Size</th>
+                  <th className="px-4 py-2.5 font-medium">Type</th>
+                  <th className="px-4 py-2.5 font-medium">Gen</th>
+                  <th className="px-4 py-2.5" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y">
+                {objects.data.objects.map((o) => (
+                  <tr key={o.object} className="transition-colors hover:bg-accent/40">
+                    <td className="max-w-xs truncate px-4 py-2.5 font-mono text-xs">{o.object}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{formatBytes(o.size)}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{o.contentType}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{o.generation}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button asChild variant="ghost" size="icon" aria-label={`Download ${o.object}`}>
+                          <a href={api.objectHref(bucket, o.object)}>
+                            <Download className="size-4" />
+                          </a>
+                        </Button>
+                        <ConfirmDialog
+                          title={`Delete “${o.object}”?`}
+                          description="This permanently removes the object. This cannot be undone."
+                          confirmLabel="Delete object"
+                          pending={remove.isPending}
+                          onConfirm={() => remove.mutate(o.object)}
+                          trigger={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Delete ${o.object}`}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          }
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
-      <p className="text-xs text-neutral-600">
-        Listing is served from the read model and is eventually consistent — a new upload may take a
-        moment to appear.
+
+      <p className="text-xs text-muted-foreground/70">
+        Listing is served from Apollo&apos;s read model and is eventually consistent — a new upload
+        may take a moment to appear.
       </p>
     </div>
   );
