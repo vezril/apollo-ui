@@ -7,6 +7,7 @@ import { ArrowLeft, Download, FileText, Loader2, Trash2, Upload } from "lucide-r
 import { useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/apollo/confirm-dialog";
+import { ObjectPreview } from "@/components/apollo/object-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,7 +156,21 @@ export default function BucketPage() {
               <tbody className="divide-y">
                 {objects.data.objects.map((o) => (
                   <tr key={o.object} className="transition-colors hover:bg-accent/40">
-                    <td className="max-w-xs truncate px-4 py-2.5 font-mono text-xs">{o.object}</td>
+                    <td className="max-w-xs px-4 py-2.5">
+                      <ObjectPreview
+                        bucket={bucket}
+                        obj={o}
+                        trigger={
+                          <button
+                            type="button"
+                            title={`Preview ${o.object}`}
+                            className="block max-w-full truncate text-left font-mono text-xs hover:text-primary hover:underline"
+                          >
+                            {o.object}
+                          </button>
+                        }
+                      />
+                    </td>
                     <td className="px-4 py-2.5 text-muted-foreground">{formatBytes(o.size)}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{o.contentType}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{o.generation}</td>
