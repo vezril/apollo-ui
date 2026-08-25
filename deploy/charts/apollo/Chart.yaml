@@ -1,0 +1,8 @@
+apiVersion: v2
+name: apollo
+description: >-
+  Apollo UI — an operator console for ApolloStorage. A standalone Next.js server that also hosts the
+  BFF routes proxying Apollo's REST API. Internal by default; enable ingress once TLS exists.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

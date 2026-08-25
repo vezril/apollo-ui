@@ -1,0 +1,40 @@
+# Reference manifests for the Codex GitOps repo (apps/apollo-ui/). Mirrors how
+# muses-ui / hermes-ui are wired: a GitRepository pointing at this repo, and a
+# HelmRelease rendering deploy/charts/apollo with the endpoint pointed at Apollo's
+# in-cluster Service. Copy into codex apps/apollo-ui/ and pin a released image tag.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: apollo-ui
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: https://github.com/vezril/apollo-ui
+  ref:
+    branch: main
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: apollo-ui
+  namespace: apollo-ui
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: deploy/charts/apollo
+      sourceRef:
+        kind: GitRepository
+        name: apollo-ui
+        namespace: flux-system
+  values:
+    image:
+      repository: calvinference/apolloui
+      tag: 0.1.0
+    replicaCount: 1
+    apollo:
+      apiBase: /api/apollo
+      endpoint: http://apollo.apollo.svc.cluster.local:8080
+    ingress:
+      enabled: false

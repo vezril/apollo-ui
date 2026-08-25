@@ -1,0 +1,62 @@
+# Default values for the Apollo UI chart.
+#
+# Cluster reality (per Codex): single-node k3s on QNAP. Conservative defaults —
+# one replica, ingress OFF (turn on once cert-manager/TLS exists).
+
+image:
+  # Docker Hub is the source of truth; the release workflow publishes under the
+  # DOCKERHUB_USERNAME account (calvinference).
+  repository: calvinference/apolloui
+  # Pin a released semver tag in production (matches the release workflow).
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# ApolloStorage connection. The UI is a BFF: the browser only ever talks to the
+# same-origin /api/apollo/* routes; the endpoint and token stay SERVER-side.
+apollo:
+  # Browser client selector (NOT a secret): the same-origin BFF base path.
+  # NEXT_PUBLIC_* is inlined at BUILD time (Dockerfile bakes "/api/apollo"); this
+  # value governs only the server tier's copy — keep the two in sync.
+  apiBase: "/api/apollo"
+  # Base URL of ApolloStorage's REST API (server-side, BFF only). Apollo serves
+  # HTTP on 8080; its Service and namespace are both "apollo" on the cluster:
+  #   http://apollo.apollo.svc.cluster.local:8080
+  endpoint: ""
+  # Optional bearer token for Apollo's scoped auth, from a Kubernetes Secret —
+  # never plaintext. Apollo runs with auth disabled today, so leave secretName
+  # empty; set it (a read-scoped token is enough for browse/download; write for
+  # create/upload/delete) when auth is turned on.
+  token:
+    secretName: ""
+    secretKey: token
+
+service:
+  port: 80
+  targetPort: 3000
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+ingress:
+  # OFF by default: no ingress TLS on the cluster yet. Enable once cert-manager exists.
+  enabled: false
+  className: ""
+  host: apollo-ui.homelab
+  clusterIssuer: ""
+  tlsSecretName: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
