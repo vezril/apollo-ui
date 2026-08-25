@@ -54,6 +54,17 @@ Codex repo as `apps/apollo-ui/` (a `GitRepository` + `HelmRelease`), mirroring `
 
 ## Status
 
-Initial scaffold. TODO before first release: `npm install` + build/typecheck, add `.github/workflows`
-(`ci.yml` typecheck/lint, `release.yml` publishing `calvinference/apolloui` on a `vX.Y.Z` tag),
-object metadata view, and (optionally) a metrics/blob-GC admin surface.
+Working draft: production build green (TS + lint + standalone), Helm chart lints + renders, and the
+BFF is smoke-tested end-to-end against the live Apollo (upload→QuObjects, download←QuObjects). CI
+(`ci.yml`) and release (`release.yml` → `calvinference/apolloui`) workflows are in place.
+
+Before first deploy:
+
+- Add `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` repo secrets, then tag `v0.1.0` to publish the image.
+- Wire `apps/apollo-ui/` into the Codex GitOps repo (see `deploy/flux/apollo-helmrelease.yaml`).
+
+Known, deferred: `npm audit` flags a **postcss** advisory (build-time only — malicious `sourceMappingURL`
+in attacker-controlled CSS, which this app never processes) bundled inside Next 15. The fix is a
+breaking bump to Next 16; deferred as constellation-wide tech-debt to move all UIs together.
+
+Later: object metadata view, a metrics / blob-GC admin surface.
