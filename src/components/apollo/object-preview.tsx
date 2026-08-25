@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Download, FileQuestion } from "lucide-react";
+import { Check, Copy, Download, FileQuestion } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -38,12 +38,73 @@ function kindOf(contentType: string): Kind {
   return "other";
 }
 
-/** A single labelled metadata cell for the preview header strip. */
+/** Copy text to the clipboard, with a fallback for insecure (http) contexts
+ * where navigator.clipboard is unavailable — the app is served over plain HTTP
+ * on the tailnet, so the Clipboard API alone would silently fail there. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through to the execCommand path */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Small copy-to-clipboard affordance with a brief "copied" confirmation. */
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label={`Copy ${label}`}
+      title={`Copy ${label}`}
+      onClick={async () => {
+        if (await copyText(value)) {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        }
+      }}
+      className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:text-foreground"
+    >
+      {copied ? <Check className="size-3.5 text-status-up" /> : <Copy className="size-3.5" />}
+    </button>
+  );
+}
+
+/** A single labelled metadata cell. */
 function Meta({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
     <div className="min-w-0">
       <dt className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className={cn("truncate text-xs", mono && "font-mono")}>{value}</dd>
+    </div>
+  );
+}
+
+/** A full-width checksum row: label + full (non-truncated) mono value + copy. */
+function HashField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <dt className="w-16 shrink-0 pt-0.5 text-[0.65rem] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="min-w-0 flex-1 break-all font-mono text-xs">{value}</dd>
+      <CopyButton value={value} label={label} />
     </div>
   );
 }
@@ -86,12 +147,24 @@ export function ObjectPreview({
           <DialogDescription className="sr-only">Object preview</DialogDescription>
         </DialogHeader>
 
-        {/* Metadata strip */}
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border bg-card/60 p-3 sm:grid-cols-4">
-          <Meta label="Type" value={obj.contentType} mono />
-          <Meta label="Size" value={formatBytes(obj.size)} />
-          <Meta label="Gen" value={obj.generation} />
-          <Meta label="crc32c" value={obj.crc32c} mono />
+        {/* Metadata — the full object metadata (read-model fields). */}
+        <dl className="space-y-3 rounded-md border bg-card/60 p-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            <Meta label="Content type" value={obj.contentType} mono />
+            <Meta
+              label="Size"
+              value={
+                obj.size < 1024
+                  ? `${obj.size} B`
+                  : `${formatBytes(obj.size)} · ${obj.size.toLocaleString()} B`
+              }
+            />
+            <Meta label="Generation" value={obj.generation} />
+          </div>
+          <div className="space-y-2 border-t pt-3">
+            <HashField label="crc32c" value={obj.crc32c} />
+            <HashField label="md5" value={obj.md5} />
+          </div>
         </dl>
 
         {/* Body — rendered by kind */}
