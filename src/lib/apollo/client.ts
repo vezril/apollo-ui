@@ -38,6 +38,17 @@ export const api = {
       .map(encodeURIComponent)
       .join("/")}`,
 
+  /** Same bytes as objectHref, but served `inline` for in-app preview (img/pdf/media). */
+  previewHref: (bucket: string, object: string): string =>
+    `${api.objectHref(bucket, object)}?inline=1`,
+
+  /** Fetch an object's bytes as text, for previewing text/JSON/etc. Aborts via `signal`. */
+  fetchText: async (bucket: string, object: string, signal?: AbortSignal): Promise<string> => {
+    const r = await fetch(api.previewHref(bucket, object), { signal });
+    if (!r.ok) throw new Error((await r.text()) || `preview failed (${r.status})`);
+    return r.text();
+  },
+
   uploadObject: async (bucket: string, object: string, file: File): Promise<ObjectEntry> => {
     const r = await fetch(api.objectHref(bucket, object), {
       method: "PUT",

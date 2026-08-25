@@ -13,10 +13,15 @@ function objectPath(bucket: string, key: string[]): string {
 
 const META_HEADERS = ["x-apollo-generation", "x-apollo-size", "x-apollo-crc32c", "x-apollo-md5"];
 
-/** GET — stream the object bytes back to the browser as a download. */
-export async function GET(_req: Request, { params }: Ctx) {
+/**
+ * GET — stream the object bytes back to the browser. Defaults to a download
+ * (`attachment`); pass `?inline=1` for the in-app preview, which serves the
+ * bytes `inline` so the browser renders images/PDFs/media instead of saving them.
+ */
+export async function GET(req: Request, { params }: Ctx) {
   try {
     const { bucket, key } = await params;
+    const inline = new URL(req.url).searchParams.get("inline") === "1";
     const res = await apolloFetch(objectPath(bucket, key));
     if (!res.ok) return apolloErrorResponse(res);
     const headers = new Headers();
@@ -25,7 +30,10 @@ export async function GET(_req: Request, { params }: Ctx) {
     const len = res.headers.get("content-length");
     if (len) headers.set("content-length", len);
     const filename = (key[key.length - 1] || "object").replace(/["\\]/g, "");
-    headers.set("content-disposition", `attachment; filename="${filename}"`);
+    headers.set(
+      "content-disposition",
+      `${inline ? "inline" : "attachment"}; filename="${filename}"`
+    );
     for (const h of META_HEADERS) {
       const v = res.headers.get(h);
       if (v) headers.set(h, v);
