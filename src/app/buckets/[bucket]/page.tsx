@@ -18,7 +18,16 @@ export default function BucketPage() {
   const [error, setError] = useState<string | null>(null);
 
   const key = ["objects", bucket, prefix] as const;
-  const objects = useQuery({ queryKey: key, queryFn: () => api.listObjects(bucket, prefix) });
+  const objects = useQuery({
+    queryKey: key,
+    queryFn: () => api.listObjects(bucket, prefix),
+    // The read model is eventually consistent: a just-created bucket returns
+    // BUCKET_NOT_FOUND for a moment. Ride that out as a loading state rather than
+    // a hard error (a genuinely missing bucket still surfaces after the retries).
+    retry: (failureCount, error) =>
+      failureCount < 6 && /exist|not[\s-]?found/i.test((error as Error).message),
+    retryDelay: 1200,
+  });
   const refetchSoon = () => setTimeout(() => qc.invalidateQueries({ queryKey: ["objects", bucket] }), 1500);
 
   const upload = useMutation({
